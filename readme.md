@@ -14,8 +14,8 @@ Flags:
   -p, --profile string   profile to use (default "default")
 ```
 
-## Build it
+This will only work for profiles that are configured to perform `iam:AssumeRole` API calls to retreive AWS credentials. This includes SSO-based profiles.
 
-```
-make console
-```
+## Install it
+
+[Download the most recent release](https://github.com/rclark/console/releases) for your system's OS & architecture, unpack it, and place the `console` (or `console.exe`) file on your `$PATH`.
