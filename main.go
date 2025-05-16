@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -33,12 +34,16 @@ var root = &cobra.Command{
 
 		cfg, err := config.LoadDefaultConfig(ctx, config.WithSharedConfigProfile(profile))
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to load config: %w", err)
 		}
 
 		creds, err := cfg.Credentials.Retrieve(ctx)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to retrieve credentials: %w", err)
+		}
+
+		if creds.SessionToken == "" {
+			return fmt.Errorf("you must select a profile that uses temporary credentials")
 		}
 
 		data, err := json.Marshal(Credentials{
@@ -63,23 +68,27 @@ var root = &cobra.Command{
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, federationURL, nil)
 		if err != nil {
-			return err
+			return fmt.Errorf("federation request failed: %w", err)
 		}
 
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			return err
+			return fmt.Errorf("federation response failed: %w", err)
 		}
 
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("failed to get signin token: %d", resp.StatusCode)
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return fmt.Errorf("failed to read error response: %v", err)
+			}
+			return fmt.Errorf("failed to get signin token: [%d] %s", resp.StatusCode, string(body))
 		}
 
 		var body Response
 		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-			return err
+			return fmt.Errorf("failed to decode federation response body: %w", err)
 		}
 
 		query = url.Values{}
@@ -91,7 +100,11 @@ var root = &cobra.Command{
 		signinURL := fmt.Sprintf("https://%s.signin.aws.amazon.com/federation", region)
 		signinURL = signinURL + "?" + query.Encode()
 
-		return open(signinURL)
+		if err := open(signinURL); err != nil {
+			return fmt.Errorf("failed to open browser: %w", err)
+		}
+
+		return nil
 	},
 }
 
